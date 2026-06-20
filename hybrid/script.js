@@ -973,25 +973,33 @@ function calcTotals() {
   }
 
   const netPayable = round2(Math.max(0, grandTotal - subsidyAmount));
+  // Net Payable to V-Sustain is the FULL grand total (no subsidy deducted).
+  // Net Expenditure (After Subsidy Refund) = Grand Total - Subsidy.
+  // Note: we keep `netPayable` here for any future external callers; its
+  // previous semantics (grand total - subsidy) is now exposed as `netExpenditure`.
+  const netPayableToVSustain = round2(grandTotal);
+  const netExpenditure       = round2(Math.max(0, grandTotal - subsidyAmount));
 
   // Live-update the UI hint
   const hintEl = $('subsidyModeHint');
   const displayEl = $('subsidyAmountDisplay');
+  const netExpEl  = $('netExpenditureDisplay');
   if (displayEl) displayEl.value = '₹' + subsidyAmount.toLocaleString('en-IN');
+  if (netExpEl)  netExpEl.value  = '₹' + netExpenditure.toLocaleString('en-IN');
   if (hintEl) {
     if (subsidyMode === 'none') {
-      hintEl.textContent = 'No subsidy selected — toggle on to apply.';
+      hintEl.textContent = 'No subsidy selected — full amount is payable to V-Sustain.';
       hintEl.style.color = '#64748b';
     } else if (subsidyMode === 'residential') {
       if (subsidyAmount > 0) {
-        hintEl.textContent = `Residential subsidy applied: ${fmt(subsidyAmount)} will be deducted from the final amount.`;
+        hintEl.textContent = `Residential subsidy ${fmt(subsidyAmount)} will be refunded to the customer via DBT post-installation. Customer pays ${fmt(netPayableToVSustain)} upfront to V-Sustain; net expenditure is ${fmt(netExpenditure)}.`;
         hintEl.style.color = '#15803d';
       } else {
         hintEl.textContent = `Residential subsidy not eligible for ${kw} kW — applies only to 2 kW or 3–10 kW systems.`;
         hintEl.style.color = '#b45309';
       }
     } else if (subsidyMode === 'apartment') {
-      hintEl.textContent = `Apartment/Flat subsidy applied: ₹18,000 × ${kw} kW = ${fmt(subsidyAmount)}.`;
+      hintEl.textContent = `Apartment/Flat subsidy ${fmt(subsidyAmount)} (₹18,000 × ${kw} kW) will be refunded to the Association via DBT post-installation. Net expenditure: ${fmt(netExpenditure)}.`;
       hintEl.style.color = '#15803d';
     }
   }
@@ -1005,7 +1013,8 @@ function calcTotals() {
     grandTotal,
     subsidyMode,
     subsidyAmount,
-    netPayable
+    netPayable: netPayableToVSustain, // renamed semantics: full grand total payable upfront
+    netExpenditure
   };
 }
 
@@ -1060,7 +1069,6 @@ function buildDetailedQuotationHtml(totals, systemType, summaryMode = false) {
   // ---- Subsidy context (mutually exclusive toggle) ----
   const subMode = totals.subsidyMode || 'none';
   const subAmt  = totals.subsidyAmount || 0;
-  const netPay  = totals.netPayable != null ? totals.netPayable : totals.grandTotal;
   const showSubsidy = subMode !== 'none' && subAmt > 0;
 
   const specRows = totals.items.map(it => `
@@ -1087,9 +1095,9 @@ function buildDetailedQuotationHtml(totals, systemType, summaryMode = false) {
   }).join('');
 
   const subsidyLabel = subMode === 'residential'
-    ? `Less: Residential Solar Subsidy (PM Surya Ghar)${plantKw <= 2 ? ' – 2 kW slab' : ' – 3–10 kW slab'}`
+    ? `Less: Residential Solar Subsidy (PM Surya Ghar)${plantKw <= 2 ? ' – 2 kW slab' : ' – 3–10 kW slab'} (refunded to customer via DBT)`
     : subMode === 'apartment'
-      ? `Less: Apartment / Flat Association Subsidy (₹18,000 × ${plantKw} kW)`
+      ? `Less: Apartment / Flat Association Subsidy (₹18,000 × ${plantKw} kW) (refunded via DBT)`
       : '';
 
   const subsidyRow = showSubsidy ? `
@@ -1100,17 +1108,21 @@ function buildDetailedQuotationHtml(totals, systemType, summaryMode = false) {
     </tr>
   ` : '';
 
-  const grandTotalLabel = showSubsidy ? 'NET PAYABLE TO V-SUSTAIN SOLAR' : 'GRAND TOTAL (Inclusive of all taxes)';
-  const grandTotalValueClass = showSubsidy ? 'text-brand-green' : 'text-brand-blue';
-  const grandTotalBgClass = showSubsidy ? 'bg-green-50/80' : 'bg-blue-50/80';
-  const grandTotalBorderClass = showSubsidy ? 'border-brand-green' : 'border-brand-blue';
+  // Net Payable to V-Sustain = FULL grand total (subsidy NOT deducted).
+  // Net Expenditure (After Subsidy Refund) = grand total - subsidy.
+  const netExpenditure = totals.netExpenditure != null ? totals.netExpenditure : Math.max(0, totals.grandTotal - subAmt);
 
   const footerRows = `
-    ${subsidyRow}
-    <tr class="${grandTotalBgClass} font-bold border-t-2 ${grandTotalBorderClass}">
+    <tr class="bg-blue-50/80 font-bold border-t-2 border-brand-blue">
       <td class="p-4 border"></td>
-      <td class="p-4 border text-right text-base" colspan="3">${grandTotalLabel}</td>
-      <td class="p-4 border text-right text-xl ${grandTotalValueClass}">${fmt(showSubsidy ? netPay : totals.grandTotal)}</td>
+      <td class="p-4 border text-right text-base" colspan="3">NET PAYABLE TO V-SUSTAIN SOLAR</td>
+      <td class="p-4 border text-right text-xl text-brand-blue">${fmt(totals.grandTotal)}</td>
+    </tr>
+    ${subsidyRow}
+    <tr class="bg-orange-50/80 font-bold border-t-2 border-brand-orange">
+      <td class="p-4 border"></td>
+      <td class="p-4 border text-right text-base" colspan="3">NET EXPENDITURE (After Subsidy Refund)</td>
+      <td class="p-4 border text-right text-xl text-brand-orange">${fmt(netExpenditure)}</td>
     </tr>
   `;
 
@@ -1129,10 +1141,13 @@ function buildDetailedQuotationHtml(totals, systemType, summaryMode = false) {
             installation, inspection and commissioning of your rooftop solar system.
           </p>
           <p class="text-sm text-gray-700 leading-relaxed">
-            <span class="font-semibold">Payment terms:</span> You are required to pay only the
-            <span class="font-semibold text-brand-green">${fmt(netPay)}</span> (net of subsidy) to V-Sustain Solar Solutions upfront.
-            The <span class="font-semibold">${fmt(subAmt)}</span> subsidy amount will be debited / disbursed to your account
-            <span class="font-semibold">post installation</span>, subject to DISCOM / MNRE approval and DBT (Direct Benefit Transfer) rules.
+            <span class="font-semibold">Payment terms:</span> The customer pays the full
+            <span class="font-semibold text-brand-blue">${fmt(totals.grandTotal)}</span> to V-Sustain Solar Solutions upfront.
+            The <span class="font-semibold">${fmt(subAmt)}</span> subsidy is then refunded by the government to the customer's bank account
+            <span class="font-semibold">post installation</span> via DBT (Direct Benefit Transfer),
+            bringing the customer's <span class="font-semibold">net expenditure</span> down to
+            <span class="font-semibold text-brand-orange">${fmt(netExpenditure)}</span>.
+            Subject to DISCOM / MNRE approval.
           </p>
         </div>`;
     }
@@ -1150,10 +1165,13 @@ function buildDetailedQuotationHtml(totals, systemType, summaryMode = false) {
             by the Government of India after successful installation, inspection and commissioning.
           </p>
           <p class="text-sm text-gray-700 leading-relaxed">
-            <span class="font-semibold">Payment terms:</span> The Apartment / Flat Association is required to pay only the
-            <span class="font-semibold text-brand-blue">${fmt(netPay)}</span> (net of subsidy) to V-Sustain Solar Solutions upfront.
-            The <span class="font-semibold">${fmt(subAmt)}</span> subsidy amount will be debited / disbursed to the Association's account
-            <span class="font-semibold">post installation</span>, subject to DISCOM / MNRE approval and DBT (Direct Benefit Transfer) rules.
+            <span class="font-semibold">Payment terms:</span> The Apartment / Flat Association pays the full
+            <span class="font-semibold text-brand-blue">${fmt(totals.grandTotal)}</span> to V-Sustain Solar Solutions upfront.
+            The <span class="font-semibold">${fmt(subAmt)}</span> subsidy is then refunded by the government to the Association's bank account
+            <span class="font-semibold">post installation</span> via DBT (Direct Benefit Transfer),
+            bringing the Association's <span class="font-semibold">net expenditure</span> down to
+            <span class="font-semibold text-brand-orange">${fmt(netExpenditure)}</span>.
+            Subject to DISCOM / MNRE approval.
           </p>
         </div>`;
     }
@@ -1737,14 +1755,15 @@ function buildShortQuotationHtml(totals, systemType) {
   // Subsidy context
   const subMode = totals.subsidyMode || 'none';
   const subAmt  = totals.subsidyAmount || 0;
-  const netPay  = totals.netPayable != null ? totals.netPayable : totals.grandTotal;
   const showSubsidy = subMode !== 'none' && subAmt > 0;
   const subLabel = subMode === 'residential'
-    ? `Less: Residential Subsidy (PM Surya Ghar)`
+    ? `Less: Residential Subsidy (PM Surya Ghar) — refunded to customer via DBT`
     : subMode === 'apartment'
-      ? `Less: Apartment / Flat Association Subsidy (₹18,000 × ${plantKw} kW)`
+      ? `Less: Apartment / Flat Association Subsidy (₹18,000 × ${plantKw} kW) — refunded via DBT`
       : '';
-  const grandLabel = showSubsidy ? 'NET PAYABLE TO V-SUSTAIN SOLAR' : 'GRAND TOTAL';
+  const netExpenditure = totals.netExpenditure != null
+    ? totals.netExpenditure
+    : Math.max(0, totals.grandTotal - subAmt);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -1798,23 +1817,19 @@ function buildShortQuotationHtml(totals, systemType) {
         <div class="mb-8">
             <h3 class="text-lg font-bold text-brand-blue mb-4 border-l-4 border-brand-blue pl-3">Commercial Offer</h3>
             <table class="w-full text-sm border-collapse">
-                <tr class="bg-gray-100 border-b border-gray-200">
-                    <td class="p-4 font-medium">Supply & Installation of ${plantKw} KW Hybrid Solar System</td>
-                    <td class="p-4 text-right font-bold">${fmt(totals.grandTotal)}</td>
+                <tr class="bg-blue-50 border-b border-gray-200">
+                    <td class="p-4 font-bold text-brand-blue">NET PAYABLE TO V-SUSTAIN SOLAR</td>
+                    <td class="p-4 text-right font-extrabold text-brand-blue">${fmt(totals.grandTotal)}</td>
                 </tr>
                 ${showSubsidy ? `
                 <tr class="bg-green-50 border-b border-gray-200">
                     <td class="p-4 font-medium text-brand-green">${subLabel}</td>
                     <td class="p-4 text-right font-bold text-brand-green">- ${fmt(subAmt)}</td>
                 </tr>
-                <tr class="bg-green-100 border-b-2 border-brand-green">
-                    <td class="p-4 font-bold ${showSubsidy ? 'text-brand-green' : ''}">${grandLabel}</td>
-                    <td class="p-4 text-right font-extrabold ${showSubsidy ? 'text-brand-green' : ''}">${fmt(showSubsidy ? netPay : totals.grandTotal)}</td>
-                </tr>` : `
-                <tr class="bg-gray-100 border-b-2 border-brand-blue">
-                    <td class="p-4 font-bold">${grandLabel}</td>
-                    <td class="p-4 text-right font-extrabold">${fmt(totals.grandTotal)}</td>
-                </tr>`}
+                <tr class="bg-orange-100 border-b-2 border-brand-orange">
+                    <td class="p-4 font-bold text-brand-orange">NET EXPENDITURE (After Subsidy Refund)</td>
+                    <td class="p-4 text-right font-extrabold text-brand-orange">${fmt(netExpenditure)}</td>
+                </tr>` : ''}
             </table>
             ${showSubsidy ? `
             <div class="mt-4 ${subMode === 'residential' ? 'bg-green-50 border-l-4 border-brand-green' : 'bg-blue-50 border-l-4 border-brand-blue'} p-4 rounded text-xs text-gray-700 leading-relaxed" contenteditable="true">
@@ -1823,15 +1838,17 @@ function buildShortQuotationHtml(totals, systemType) {
                 </p>
                 <p class="mb-2">
                     The <span class="font-semibold">${fmt(subAmt)}</span> subsidy will be credited
-                    <span class="font-semibold">directly to ${subMode === 'apartment' ? 'the Apartment / Flat Association’s bank account' : 'your bank account'}</span>
+                    <span class="font-semibold">directly to ${subMode === 'apartment' ? "the Apartment / Flat Association's bank account" : 'your bank account'}</span>
                     by the Government of India after successful installation, inspection and commissioning.
                 </p>
                 <p>
-                    <span class="font-semibold">Payment terms:</span> You are required to pay only the
-                    <span class="font-semibold ${subMode === 'residential' ? 'text-brand-green' : 'text-brand-blue'}">${fmt(netPay)}</span>
-                    (net of subsidy) to V-Sustain Solar Solutions upfront. The
-                    <span class="font-semibold">${fmt(subAmt)}</span> subsidy amount will be debited to your account
-                    <span class="font-semibold">post installation</span>, subject to DISCOM / MNRE approval and DBT rules.
+                    <span class="font-semibold">Payment terms:</span> The customer pays the full
+                    <span class="font-semibold text-brand-blue">${fmt(totals.grandTotal)}</span> to V-Sustain Solar Solutions upfront.
+                    The <span class="font-semibold">${fmt(subAmt)}</span> subsidy is then refunded by the government to the customer's bank account
+                    <span class="font-semibold">post installation</span> via DBT, making the customer's
+                    <span class="font-semibold">net expenditure</span>
+                    <span class="font-semibold text-brand-orange">${fmt(netExpenditure)}</span>.
+                    Subject to DISCOM / MNRE approval and DBT rules.
                 </p>
             </div>` : ''}
             <div class="mt-2 text-right">
