@@ -241,6 +241,14 @@ function attachEventListeners() {
   $('panelsCustomMargin').addEventListener('input', () => updatePanelData(false));
 
   // ACDB/DCDB
+  // Meter
+  $('meterType').addEventListener('change', updateMeterData);
+  $('meterQty').addEventListener('input', updateMeterData);
+  $('meterOverrideToggle').addEventListener('change', () => toggleOverrideUI('meter'));
+  $('meterOverridePrice').addEventListener('input', updateMeterData);
+  $('meterUseCommonMargin').addEventListener('change', toggleCustomMarginInput.bind(null, 'meter'));
+  $('meterCustomMargin').addEventListener('input', updateMeterData);
+
   $('acdbModel').addEventListener('change', updateACDBData);
   $('acdbQty').addEventListener('input', updateACDBData);
   $('acdbOverrideToggle').addEventListener('change', () => toggleOverrideUI('acdb'));
@@ -283,7 +291,7 @@ function attachEventListeners() {
   $('earthingSetCustomMargin').addEventListener('input', updateEarthingSetData);
 
   // enable/disable products via header toggles
-  ['inverter','battery','panels','acdb','dcdb','acCable','earthCable','la','installation','structure', 'earthingSet'].forEach(pid => {
+  ['inverter','battery','panels','meter','acdb','dcdb','acCable','earthCable','la','installation','structure', 'earthingSet'].forEach(pid => {
     const el = document.querySelector(`#${pid}Card input[type="checkbox"]`);
     if (el) el.addEventListener('change', () => recalcAllCards());
   });
@@ -523,6 +531,30 @@ function updatePanelData(manual = false) {
   $('panelTotal').value = total;
 }
 
+function updateMeterData() {
+  if (!isEnabled('meter')) {
+    $('meterDealer').value = '';
+    $('meterTotal').value = '';
+    $('meterGST').value = '';
+    return;
+  }
+  const sel = $('meterType');
+  const opt = sel.selectedOptions[0];
+  if (!opt) return;
+  const dealer = n(opt.dataset.price);
+  const qty = Math.max(1, n($('meterQty').value));
+  const base = computeBasePrice('meter', dealer);
+  const finalRate = applyMarginTo(base, 'meter');
+  const amount = round2(finalRate * qty);
+  const gstPct = getGstFor('meter');
+  const gstAmt = round2(amount * gstPct / 100);
+  const total = round2(amount + gstAmt);
+
+  $('meterDealer').value = round2(dealer);
+  $('meterGST').value = gstAmt;
+  $('meterTotal').value = total;
+}
+
 function updateACDBData() {
   if (!isEnabled('acdb')) {
     $('acdbDealer').value = '';
@@ -707,6 +739,7 @@ function recalcAllCards() {
   updateInverterData();
   updateBatteryData();
   updatePanelData(false);
+  updateMeterData();
   updateACDBData();
   updateDCDBData();
   updateACCableData();
@@ -832,6 +865,26 @@ function buildLineItemsForQuotation() {
       const base = computeBasePrice('panel', dealer);
       const rate = applyMarginTo(base, 'panels');
       items.push({ type: 'panels', item: sel.value, desc: `${sel.value} (${sel.dataset.watt} Wp)`, qty, unit: 'Nos', baseRate: rate, gstPercent: getGstFor('panels') });
+    }
+  }
+
+  // meter
+  if (isEnabled('meter')) {
+    const sel = $('meterType').selectedOptions[0];
+    if (sel) {
+      const qty = Math.max(1, n($('meterQty').value));
+      const dealer = n(sel.dataset.price);
+      const base = computeBasePrice('meter', dealer);
+      const rate = applyMarginTo(base, 'meter');
+      items.push({
+        type: 'meter',
+        item: 'Bi-Directional Meter',
+        desc: sel.value === 'single' ? 'Single Phase' : 'Three Phase',
+        qty,
+        unit: 'Nos',
+        baseRate: rate,
+        gstPercent: getGstFor('meter')
+      });
     }
   }
 
@@ -1907,7 +1960,7 @@ function escapeHtml(text) {
    9. Boot
    =========================== */
 (function boot() {
-  ['inverter','battery','panels','acdb','dcdb','installation','structure','earthingSet'].forEach(id => {
+  ['inverter','battery','panels','meter','acdb','dcdb','installation','structure','earthingSet'].forEach(id => {
     toggleCustomMarginInput(id);
   });
 })();

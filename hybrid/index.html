@@ -356,6 +356,78 @@
         </section>
 
         <!-- =================================================== -->
+        <!--     PRODUCT CARD — BI-DIRECTIONAL METER             -->
+        <!-- =================================================== -->
+        <section class="card" id="meterCard">
+            <div class="card-header">
+                <h2>Bi-Directional Meter</h2>
+                <label class="switch">
+                    <input type="checkbox" id="enableMeter" checked onclick="toggleProduct('meter')">
+                    <span class="slider round"></span>
+                </label>
+            </div>
+
+            <div class="row">
+                <div class="col">
+                    <label>Meter Type</label>
+                    <select id="meterType" onchange="updateMeterData()">
+                        <option value="">-- Select Meter Type --</option>
+                        <option value="single" data-price="4500">Single Phase</option>
+                        <option value="three" data-price="7500">Three Phase</option>
+                    </select>
+                </div>
+
+                <div class="col">
+                    <label>Quantity</label>
+                    <input type="number" id="meterQty" value="1" min="1" oninput="updateMeterData()" />
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col">
+                    <label>Dealer Price (Auto)</label>
+                    <input type="number" id="meterDealer" readonly />
+                </div>
+
+                <div class="col">
+                    <label>Manual Price Override</label>
+                    <label class="switch-small">
+                        <input type="checkbox" id="meterOverrideToggle" onclick="toggleOverride('meter')">
+                        <span class="slider-small round"></span>
+                    </label>
+                    <input type="number" id="meterOverridePrice" class="hidden" placeholder="Enter manual price" oninput="updateMeterData()" />
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col">
+                    <label>Use Common Margin?</label>
+                    <label class="switch-small">
+                        <input type="checkbox" id="meterUseCommonMargin" checked onclick="updateMeterData()">
+                        <span class="slider-small round"></span>
+                    </label>
+                </div>
+
+                <div class="col">
+                    <label>Custom Margin (%)</label>
+                    <input type="number" id="meterCustomMargin" disabled value="0" oninput="updateMeterData()" />
+                </div>
+            </div>
+
+            <div class="row result-row">
+                <div class="col">
+                    <label>GST (18%)</label>
+                    <input type="number" id="meterGST" readonly />
+                </div>
+
+                <div class="col">
+                    <label>Total Amount</label>
+                    <input type="number" id="meterTotal" readonly />
+                </div>
+            </div>
+        </section>
+
+        <!-- =================================================== -->
         <!--            ACDB PRODUCT CARD                        -->
         <!-- =================================================== -->
         <section class="card" id="acdbCard">
